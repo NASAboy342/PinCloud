@@ -9,7 +9,7 @@ namespace APinI.Controllers
         [HttpGet]
         public string Get()
         {
-            return "Welcome to APinI API";
+            return "Welcome to PinCloud API";
         }
     }
 }
