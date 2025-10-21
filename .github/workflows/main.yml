@@ -1,1 +1,48 @@
+name: Deploy
 
+on:
+  push:
+    branches: [ main ]
+
+env:
+  repositoryDir: D:\Clones\PinCloud
+  projectDir: D:\Clones\PinCloud\PinCloud\PinCloud
+  destinationDir: D:\Websites\PinCloud
+  publishDir: D:\Clones\PinCloud\PinCloud\PinCloud\bin\Release\net7.0
+
+jobs:
+  test-runner:
+    runs-on: self-hosted  # This will use your self-hosted runner
+    
+    steps:
+    - name: Pull Repository
+      shell: powershell
+      run: |
+        Write-Host "Going to repository directory..."
+        cd "${{ env.repositoryDir }}"
+        Write-Host "Current directory: $(Get-Location)"
+        Write-Host "Pulling latest code..."
+        git pull origin main
+
+    - name: Build
+      shell: powershell
+      run: |
+        Write-Host "Going to project directory..."
+        cd "${{ env.projectDir }}"
+        Write-Host "Building"
+        dotnet build
+      
+
+    - name: Deploy Application
+      shell: powershell
+      run: |
+        Write-Host "Going to project directory..."
+        cd "${{ env.projectDir }}"
+        Stop-WebAppPool -Name "pincloud"
+        Write-Host "Current directory: $(Get-Location)"
+        Write-Host "Publish application..."
+        dotnet publish
+        Write-Host "Publish completed successfully!"
+        Write-Host "Ready to copy build to deployment directory..."
+        Copy-Item -Path "${{ env.publishDir }}/*" -Destination "${{ env.destinationDir }}" -Recurse -Force
+        Start-WebAppPool -Name "pincloud"
