@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Upload Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .upload-area { border: 2px dashed #ccc; padding: 40px; text-align: center; margin: 20px 0; }
+        .upload-area:hover { border-color: #999; }
+        .file-list { margin-top: 20px; }
+        .file-item { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        button { padding: 10px 20px; margin: 5px; }
+        input[type="text"] { padding: 8px; margin: 5px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>File Upload & Management</h1>
+    
+    <div>
+        <h3>Upload File</h3>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="upload-area">
+                <input type="file" id="fileInput" name="file" accept="image/*,audio/*,.pdf,.txt,.doc,.docx">
+                <br><br>
+                <label>Subfolder (optional): </label>
+                <input type="text" id="subfolder" name="subfolder" placeholder="e.g., images, audio">
+                <br><br>
+                <button type="submit">Upload File</button>
+            </div>
+        </form>
+        <div id="uploadResult"></div>
+    </div>
+
+    <div>
+        <h3>List Files</h3>
+        <input type="text" id="listSubfolder" placeholder="Subfolder (optional)">
+        <button onclick="listFiles()">List Files</button>
+        <div id="fileList" class="file-list"></div>
+    </div>
+
+    <div>
+        <h3>How to Access Files</h3>
+        <p>Once you upload files, you can access them directly in the browser using these URL patterns:</p>
+        <ul>
+            <li><strong>Direct path:</strong> <code>http://localhost:5000/files/filename.ext</code></li>
+            <li><strong>With subfolder:</strong> <code>http://localhost:5000/files/subfolder/filename.ext</code></li>
+            <li><strong>Type-based:</strong> <code>http://localhost:5000/png/filename.png</code></li>
+        </ul>
+        <p><strong>Supported inline viewing:</strong></p>
+        <ul>
+            <li>🖼️ <strong>Images:</strong> JPG, PNG, GIF, BMP, WebP - Display directly in browser</li>
+            <li>🎵 <strong>Audio:</strong> MP3, WAV, OGG - Play with browser audio controls</li>
+            <li>📄 <strong>PDFs:</strong> View with browser PDF viewer</li>
+            <li>📝 <strong>Text files:</strong> Display as plain text</li>
+        </ul>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('fileInput');
+            const subfolder = document.getElementById('subfolder').value;
+            
+            if (!fileInput.files[0]) {
+                alert('Please select a file');
+                return;
+            }
+            
+            formData.append('file', fileInput.files[0]);
+            if (subfolder) {
+                formData.append('subfolder', subfolder);
+            }
+            
+            try {
+                const response = await fetch('/api/file/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('uploadResult').innerHTML = `
+                        <div style="color: green;">
+                            <h4>Upload Successful!</h4>
+                            <p><strong>File:</strong> ${result.originalFileName}</p>
+                            <p><strong>Size:</strong> ${(result.size / 1024).toFixed(2)} KB</p>
+                            <p><strong>Access URL:</strong> <a href="${result.accessUrl}" target="_blank">${result.accessUrl}</a></p>
+                            <p><strong>Direct Path:</strong> /${result.path}</p>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('uploadResult').innerHTML = `
+                        <div style="color: red;">Error: ${result.message || result}</div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('uploadResult').innerHTML = `
+                    <div style="color: red;">Error: ${error.message}</div>
+                `;
+            }
+        });
+        
+        async function listFiles() {
+            const subfolder = document.getElementById('listSubfolder').value;
+            const url = subfolder ? `/api/file/list?subfolder=${encodeURIComponent(subfolder)}` : '/api/file/list';
+            
+            try {
+                const response = await fetch(url);
+                const files = await response.json();
+                
+                if (response.ok) {
+                    if (files.length === 0) {
+                        document.getElementById('fileList').innerHTML = '<p>No files found.</p>';
+                        return;
+                    }
+                    
+                    const fileListHtml = files.map(file => `
+                        <div class="file-item">
+                            <strong>${file.fileName}</strong><br>
+                            Size: ${(file.size / 1024).toFixed(2)} KB<br>
+                            Last Modified: ${new Date(file.lastModified).toLocaleString()}<br>
+                            <a href="${file.accessUrl}" target="_blank">View Inline</a> |
+                            <a href="${file.accessUrl}" download>Download</a> |
+                            <button onclick="deleteFile('${file.path}')">Delete</button>
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('fileList').innerHTML = fileListHtml;
+                } else {
+                    document.getElementById('fileList').innerHTML = `<div style="color: red;">Error: ${files.message || files}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('fileList').innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function deleteFile(filePath) {
+            if (!confirm('Are you sure you want to delete this file?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/file/${encodeURIComponent(filePath)}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('File deleted successfully');
+                    listFiles(); // Refresh the list
+                } else {
+                    alert(`Error: ${result.message || result}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+        
+        // Load files on page load
+        listFiles();
+    </script>
+</body>
+</html>
